@@ -73,12 +73,77 @@ spec:
 1. 准备的docker image 容器如下
 
    ```yaml
-   
+   nginx:latest
+   nginx:1.16.0
+   nginx:1.17.0
    ```
 
    
 
 2. 使用set image操作
+
+   ```powershell
+   [root@devops01 ~]# kubectl get rs
+   NAME                        DESIRED   CURRENT   READY   AGE
+   deployment-test-569cbbc8d   10        10        10      30m
+   
+   [root@devops01 ~]# kubectl set image deployment/deployment-test  app-1=nginx:1.17.0
+   deployment.apps/deployment-test image updated
+   
+   [root@devops01 ~]# kubectl get rs
+   NAME                         DESIRED   CURRENT   READY   AGE
+   deployment-test-569cbbc8d    7         7         7       31m
+   deployment-test-685d5587c9   6         6         1       30s
+   
+   [root@devops01 ~]# kubectl get pods
+   NAME                               READY   STATUS              RESTARTS   AGE
+   deployment-test-569cbbc8d-dxd7p    2/2     Running             0          3m9s
+   deployment-test-569cbbc8d-kxrht    2/2     Running             0          3m9s
+   deployment-test-569cbbc8d-lh58r    2/2     Running             4          31m
+   deployment-test-569cbbc8d-rd8ls    2/2     Running             0          3m9s
+   deployment-test-569cbbc8d-svhhc    2/2     Terminating         0          3m9s
+   deployment-test-569cbbc8d-v4hpp    2/2     Running             0          3m9s
+   deployment-test-569cbbc8d-zf5fm    2/2     Running             2          31m
+   deployment-test-569cbbc8d-zws9t    2/2     Running             2          31m
+   deployment-test-685d5587c9-2pvfb   0/2     ContainerCreating   0          13s
+   deployment-test-685d5587c9-5284z   0/2     ContainerCreating   0          41s
+   deployment-test-685d5587c9-d6vld   0/2     ContainerCreating   0          41s
+   deployment-test-685d5587c9-lxsrv   0/2     ContainerCreating   0          41s
+   deployment-test-685d5587c9-p7r4p   2/2     Running             0          41s
+   deployment-test-685d5587c9-vl2nm   2/2     Running             0          41s
+   [root@devops01 ~]# kubectl rollout status deployment/deployment-test
+   Waiting for deployment "deployment-test" rollout to finish: 7 out of 10 new replicas have been updated...
+   Waiting for deployment "deployment-test" rollout to finish: 7 out of 10 new replicas have been updated...
+   Waiting for deployment "deployment-test" rollout to finish: 7 out of 10 new replicas have been updated...
+   Waiting for deployment "deployment-test" rollout to finish: 8 out of 10 new replicas have been updated...
+   
+   [root@devops01 ~]# kubectl rollout history deployment/deployment-test
+   deployment.apps/deployment-test 
+   REVISION  CHANGE-CAUSE
+   3         kubectl apply --filename=deploy1.yaml --record=true
+   4         kubectl apply --filename=deploy1.yaml --record=true
+   
+   # 在将镜像还没有全部修改为1.17.0版本的时候，再一次将奖项版本升级到latest
+   [root@devops01 ~]# kubectl set image deployment/deployment-test app-1=nginx:latest
+   deployment.apps/deployment-test image updated
+   [root@devops01 ~]# kubectl get rs
+   NAME                         DESIRED   CURRENT   READY   AGE
+   deployment-test-569cbbc8d    1         1         1       35m
+   deployment-test-685d5587c9   7         7         7       4m6s
+   deployment-test-86b74bfb69   5         5         0       2s
+   
+   [root@devops01 ~]# kubectl get rs
+   NAME                         DESIRED   CURRENT   READY   AGE
+   deployment-test-569cbbc8d    0         0         0       37m
+   deployment-test-685d5587c9   4         4         4       6m19s
+   deployment-test-86b74bfb69   9         9         5       2m15s
+   ```
+
+   本次操作的特点如下，首先是将replicas的数量提升为10个。然后通过`set image`操作去修改镜像名为`app-1`的容器镜像，分别为`1.17.0`，`latest`两个版本，这室，deployment会创建3个`rs`，这三个`rs`对应着3个不同的版本。
+
+   最后，在`1.17.0`版本时，pod没有全部都到达时，有执行了`latest`操作。kubernetes并不会继续完成为完成的`1.17.0`的升级，而是马上开始`latest`的升级。它会继续关闭`1.16.0`的版本，直到为0，然后在继续关闭`1.17.0`的版本，直到`latest`版本的pod数量为10.
+
+   
 
 3. 使用patch操作
 
@@ -92,7 +157,25 @@ spec:
 
 ###### 扩缩容操作
 
-准备的容器镜像版本信息如下
+```powershell
+[root@devops01 ~]# kubectl apply -f deployment1.yaml --record
+[root@devops01 ~]# kubectl scale deployment/deployment-test --replicas=10
+deployment.apps/deployment-test scaled
+[root@devops01 ~]# kubectl get pods
+NAME                              READY   STATUS              RESTARTS   AGE
+deployment-test-569cbbc8d-dxd7p   0/2     ContainerCreating   0          6s
+deployment-test-569cbbc8d-kxrht   0/2     ContainerCreating   0          6s
+deployment-test-569cbbc8d-lh58r   2/2     Running             2          28m
+deployment-test-569cbbc8d-rd8ls   0/2     ContainerCreating   0          6s
+deployment-test-569cbbc8d-svhhc   0/2     ContainerCreating   0          6s
+deployment-test-569cbbc8d-v4hpp   0/2     ContainerCreating   0          6s
+deployment-test-569cbbc8d-vt8dw   0/2     ContainerCreating   0          6s
+deployment-test-569cbbc8d-w9xxv   0/2     ContainerCreating   0          6s
+deployment-test-569cbbc8d-zf5fm   2/2     Running             2          28m
+deployment-test-569cbbc8d-zws9t   2/2     Running             2          28m
+```
+
+
 
 
 
