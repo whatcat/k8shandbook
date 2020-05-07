@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-test
+spec:
+  replicas: 3
+  minReadySeconds: 10 #这里需要估计一个合理的值，从容器启动到应用正产提供服务
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1 # 更新时允许最大激增的容器数 默认为replicas的1/4向上取整数
+      maxUnavailable: 0 # 更新时允许的最大 unavailable 容器数， 默认为replicas数的1/4向下取整数
+  selector:
+    matchLabels:
+      app-1: nginx
+      app-2: busybox
+  template:
+    metadata:
+      labels:
+        app-1: nginx
+        app-2: busybox
+    spec:
+      containers:
+        - name: app-1
+          image: nginx:1.16.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+            - containerPort: 8080
+        - name: app-2
+          image: busybox
+          imagePullPolicy: Never
+          command: ['/bin/sh', '-c']
+          args:
+            - while :;do sleep 20; done
