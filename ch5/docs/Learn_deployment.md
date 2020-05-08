@@ -24,7 +24,7 @@ metadata:
   name: deployment-test
 spec:
   replicas: 3
-  minReadySeconds: 10 #这里需要估计一个合理的值，从容器启动到应用正产提供服务
+  minReadySeconds: 10 #这里需要估计一个合理的值，从容器启动到应用正常提供服务
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -47,6 +47,11 @@ spec:
           ports:
             - containerPort: 80
             - containerPort: 8080
+          readinessProbe: # 添加存活探针，用来保证，当新起来的pod可用，在删掉旧的pod
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
         - name: app-2
           image: busybox
           imagePullPolicy: Never
@@ -143,15 +148,9 @@ spec:
 
    最后，在`1.17.0`版本时，pod没有全部都到达时，有执行了`latest`操作。kubernetes并不会继续完成为完成的`1.17.0`的升级，而是马上开始`latest`的升级。它会继续关闭`1.16.0`的版本，直到为0，然后在继续关闭`1.17.0`的版本，直到`latest`版本的pod数量为10.
 
-   
-
-3. 使用patch操作
+3. 使用patch操作, 补丁操作，参数可以是`yaml`或者`json`格式
 
 4. 使用pause操作和resume操作
-
-
-
-
 
 
 
@@ -159,6 +158,8 @@ spec:
 
 ```powershell
 [root@devops01 ~]# kubectl apply -f deployment1.yaml --record
+
+## 扩容操作
 [root@devops01 ~]# kubectl scale deployment/deployment-test --replicas=10
 deployment.apps/deployment-test scaled
 [root@devops01 ~]# kubectl get pods
@@ -173,17 +174,101 @@ deployment-test-569cbbc8d-vt8dw   0/2     ContainerCreating   0          6s
 deployment-test-569cbbc8d-w9xxv   0/2     ContainerCreating   0          6s
 deployment-test-569cbbc8d-zf5fm   2/2     Running             2          28m
 deployment-test-569cbbc8d-zws9t   2/2     Running             2          28m
+
+## 缩容操作
+[root@devops01 ~]# kubectl scale deployment/deployment-test --replicas=3
+deployment.apps/deployment-test scaled
+[root@devops01 ~]# kubectl get pods
+NAME                               READY   STATUS        RESTARTS   AGE
+deployment-test-6b9cd7d8fb-8bw7h   2/2     Running       0          4m47s
+deployment-test-6b9cd7d8fb-j6gtq   2/2     Running       0          8m4s
+deployment-test-6b9cd7d8fb-k6d4x   2/2     Running       0          5m11s
+deployment-test-6b9cd7d8fb-ljnb5   2/2     Terminating   0          12s
+deployment-test-6b9cd7d8fb-nnwrf   1/2     Terminating   0          12s
 ```
 
 
 
+###### 回滚到指定的历史版本
 
+`deployment`会保存指定数量的`RS`版本，如下的命令。但是在多次执行`kubectl rollout undo`会陷进两个版本的循环，那么如何回滚到指定的版本呢？带参数`--to-revison`来实现。代码案例如下
 
+```powershell
+[root@devops01 ~]# kubectl rollout history  deployment/deployment-test
+deployment.apps/deployment-test 
+REVISION  CHANGE-CAUSE
+4         kubectl apply --filename=deploy1.yaml --record=true
+6         kubectl apply --filename=deploy1.yaml --record=true
+7         kubectl apply --filename=deploy1.yaml --record=true
 
+[root@devops01 ~]# kubectl rollout undo  deployment/deployment-test --to-revision=7
+deployment.apps/deployment-test skipped rollback (current template already matches revision 7)
+[root@devops01 ~]# kubectl rollout undo  deployment/deployment-test --to-revision=6
+deployment.apps/deployment-test rolled back
+```
 
 
 
 ###### 暂停和继续操作
+
+在对`deploymnet`执行滚动更新操作的过程中，可以暂停`pause`这个操作。暂停后，需要继续操作是使用`resume`
+
+```powershell
+## 更新镜像
+[root@devops01 ~]# kubectl set image deployment/deployment-test app-1=nginx:1.17.0
+deployment.apps/deployment-test image updated
+
+## 暂停操作
+[root@devops01 ~]# kubectl rollout pause deployment/deployment-test
+deployment.apps/deployment-test paused
+
+## 查看操作
+[root@devops01 ~]# kubectl get pods -o wide
+NAME                               READY   STATUS    RESTARTS   AGE    IP           NODE       NOMINATED NODE   READINESS GATES
+deployment-test-6b9cd7d8fb-j6gtq   2/2     Running   0          25s    172.17.0.7   devops01   <none>           <none>
+deployment-test-6dcd86cd9f-q8pwj   2/2     Running   0          2m9s   172.17.0.4   devops01   <none>           <none>
+deployment-test-6dcd86cd9f-qsfmb   2/2     Running   0          2m9s   172.17.0.3   devops01   <none>           <none>
+deployment-test-6dcd86cd9f-wpg77   2/2     Running   0          2m9s   172.17.0.2   devops01   <none>           <none>
+
+## 继续操作
+[root@devops01 ~]# kubectl rollout resume deployment/deployment-test 
+deployment.apps/deployment-test resumed
+## 查看
+[root@devops01 ~]# kubectl get pods -o wide
+NAME                               READY   STATUS              RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
+deployment-test-6b9cd7d8fb-j6gtq   2/2     Running             0          2m56s   172.17.0.7   devops01   <none>           <none>
+deployment-test-6b9cd7d8fb-k6d4x   0/2     ContainerCreating   0          3s      <none>       devops01   <none>           <none>
+deployment-test-6dcd86cd9f-q8pwj   2/2     Terminating         0          4m40s   172.17.0.4   devops01   <none>           <none>
+deployment-test-6dcd86cd9f-qsfmb   2/2     Running             0          4m40s   172.17.0.3   devops01   <none>           <none>
+deployment-test-6dcd86cd9f-wpg77   2/2     Running             0          4m40s   172.17.0.2   devops01   <none>           <none>
+```
+
+###### patch 补丁操作
+
+支持deployment node等api资源
+
+```powershell
+# 更新镜像补丁
+[root@devops01 ~]# kubectl patch deployment/deployment-test \
+> --patch '{"spec": {"template": {"spec": {"containers": [{"name": "app-1","image":"nginx:latest"}]}}}}' 
+deployment.apps/deployment-test patched
+
+# 查看rs变化
+[root@devops01 ~]# kubectl get rs
+NAME                         DESIRED   CURRENT   READY   AGE
+deployment-test-6b9cd7d8fb   1         1         1       21m
+deployment-test-6dcd86cd9f   0         0         0       23m
+deployment-test-7775dfb68b   3         3         2       61s
+
+# 查看pod变化
+[root@devops01 ~]# kubectl get pods
+NAME                               READY   STATUS        RESTARTS   AGE
+deployment-test-6b9cd7d8fb-j6gtq   2/2     Running       0          21m
+deployment-test-6b9cd7d8fb-k6d4x   2/2     Terminating   0          18m
+deployment-test-7775dfb68b-5bmlp   2/2     Running       0          65s
+deployment-test-7775dfb68b-bkccn   2/2     Running       0          21s
+deployment-test-7775dfb68b-mc4cd   2/2     Running       0          45s
+```
 
 
 
@@ -194,20 +279,18 @@ Daemonset确保全部或者一些Node上运行一个Pod的副本，可以通过�
 应用场景
 
 * promeutheus node exporter
-
 * filebeat fluentd
-
 * ceph-osd
 
-
+详细的部署使用，参看`prometheus`的部署方式
 
 ##### Job
 
-
+任务的使用
 
 ###### Job
 
-Job负责批处理任务，即仅执行一次的任务，它保证批处理任务的一个或多个Pod成功结束
+Job负责批处理任务，即仅执行**一次**的任务，它保证批处理任务的**一个**或**多个**Pod成功结束
 
 ###### CronJob
 
@@ -218,7 +301,14 @@ CronJob管理的是基于时间的Job,即（基于时间的循环创建执行）
 
 应用场景
 
-周期性备份、提醒等事件
+* 周期性备份、提醒等事件
+
+**CronJob的知识点须知**
+
+* 
+
+* 
+* 
 
 ##### StatefulSet
 
