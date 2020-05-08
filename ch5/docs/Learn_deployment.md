@@ -292,6 +292,15 @@ Daemonset确保全部或者一些Node上运行一个Pod的副本，可以通过�
 
 Job负责批处理任务，即仅执行**一次**的任务，它保证批处理任务的**一个**或**多个**Pod成功结束
 
+**Job Spec**格式
+
+* spec.template格式与pod一致
+* RestartPolicy 仅支持Never和OnFailure
+* 单个pod时，默认Pod成功运行后Job即结束
+* `.spec.completions`标志Job结束需要成功运行的pod个数，默认为1
+* `.spec.parallelism`标志并行运行的pod的个数，默认为1
+* `.spec.activeDeadlineSeconds`标志失败pod的重试最大时间，超过这个时间，不会再重试
+
 样例代码
 
 ```yaml
