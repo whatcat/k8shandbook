@@ -358,6 +358,45 @@ www.a.shifen.com.       30      IN      A       14.215.177.39
 
 ```
 
+##### ingress-nginx实践
+
+**ingress-nginx**安装部署
+
+
+
+**http模块**
+
+代码实践
+
+
+
+**https模块**
+
+代码实践
+
+```powershell
+[root@devops01 https]# openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=nginxsvc/O=nginxsvc"
+Generating a 2048 bit RSA private key
+.......................................+++
+......+++
+writing new private key to 'tls.key'
+-----
+[root@devops01 https]# kubectl create secret tls tls-secret --key tls.key --cert tls.crt
+secret/tls-secret created
+```
+
+
+
+
+
+**参考信息**
+
+
+
+
+
+
+
 
 
 

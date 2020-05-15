@@ -52,6 +52,10 @@ spec:
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              cpu: 2000 Mi
         - name: app-2
           image: busybox
           imagePullPolicy: Never
