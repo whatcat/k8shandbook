@@ -49,7 +49,6 @@ tolerations:
   operator: "Equal"
   value: "value1"
   effect: "NoSchedule"
-  tolerationSeconds: 3600
 - key: "key1"
   operator: "Equal"
   value: "value1"
@@ -115,6 +114,44 @@ spec:
 ```
 
 运行3600秒后，自动关闭
+
+```yaml
+[root@k8s taint]# cat  deployment_tain.yaml 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-taint
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp
+      release: stabel
+  template:
+    metadata:
+      labels:
+        app: myapp
+        release: stabel
+        env: test
+    spec:
+      tolerations:
+      - key: "check"
+        operator: "Equal"
+        value: "zhangjianfeng"
+        effect: "NoSchedule"
+        #tolerationSeconds: 360
+      containers:
+      - name: myapp
+        image: wangyanglinux/myapp:v2
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 80
+
+
+```
 
 
 
